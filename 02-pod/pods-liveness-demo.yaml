@@ -19,3 +19,7 @@ spec:
             - /tmp/healthy
         initialDelaySeconds: 5
         periodSeconds: 5
+
+# Busybox will create a file /tmp/healthy, then sleep 30 seconds, delete the file, then sleep 600 seconds
+# livenessProbe will check the file /tmp/healthy every 5 seconds, if the file exists, the pod is healthy, pod status will be Running. 
+# Otherwise, the pod is not healthy, pod will be restarted (may have some latency).
