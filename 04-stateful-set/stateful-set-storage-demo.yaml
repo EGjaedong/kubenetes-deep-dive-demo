@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web # StatefulSet name, used for pod name generation
+spec:
+  serviceName: "nginx" # Must match the name of the headless service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx # Must match the label in the pod template
+  template:
+    metadata:
+      labels:
+        app: nginx # Label for the pods
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.28.2
+        ports:
+        - containerPort: 80
+          name: web # Port name, used for service discovery
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      storageClassName: standard # Minikube default storage class; get the name with `kubectl get storageclass`. Use PVC by name.
+      accessModes:
+      - ReadWriteOnce # ReadWriteOnce: one pod can read and write, but other pods can only read.
+      resources:
+        requests:
+          storage: 1Gi
+
+# When you apply this file with kubectl, it will create 3 pods: web-0, web-1, web-2.
+# Each pod will have a PVC named www-web-{index}.
+# When you describe a pod, it will show the PVC as follows:
+# Volumes:
+#   www:
+#     Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+#     ClaimName:  www-web-0
+#     ReadOnly:   false
+#     ...
+# The PVC is created from the volumeClaimTemplates and bound via the storageClass.
+# The storageClass is standard (Minikube default); get the name with `kubectl get storageclass`. Use PVC by name.
+# After the pods are created, you can put some content in /usr/share/nginx/html, for example by running:
+# for i in 0 1; do kubectl exec web-$i -- sh -c 'echo hello $(hostname) > /usr/share/nginx/html/index.html'; done
+# Then run:
+# for i in 0 1 2; do kubectl exec -it web-$i -- curl localhost; done
+# Result will be:
+# hello web-0
+# hello web-1
+# <html>
+# <head><title>403 Forbidden</title></head>
+# <body>
+# <center><h1>403 Forbidden</h1></center>
+# <hr><center>nginx/1.28.2</center>
+# </body>
+# </html>
+# Because we modified the content in /usr/share/nginx/html/index.html in pods 0 and 1, but not in pod 2.
+# When we delete these pods, `k delete pod -l app=nginx`, then execute curl localhost, the result will be the same as before.
+# The content in /usr/share/nginx/html/index.html is persisted in the PVC (actually in the PV; PVC is an interface for PV, and PV is the implementation).
